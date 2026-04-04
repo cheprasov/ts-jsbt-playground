@@ -174,12 +174,15 @@ export default function App() {
 
     const payloadBytes = useMemo(() => (lastEncoded ? strToBytesLatin1(lastEncoded.payload) : null), [lastEncoded]);
     const payloadHex = useMemo(() => (payloadBytes ? bytesToHex(payloadBytes) : ''), [payloadBytes]);
+    const payloadBin = useMemo(() => (payloadBytes ? bytesToBin(payloadBytes) : ''), [payloadBytes]);
 
     const onEncode = () => {
         setError(null);
         try {
             const v = eval(`(function InputFunc(){ ${inputText} })();`);
             const enc = encodeValue(v);
+            console.log('Original value', v);
+            console.log('Encoded JSBT', enc.payload);
             try {
                 setLastEncodedJSONSize(JSON.stringify(v).length);
             } catch (e) {
@@ -188,6 +191,7 @@ export default function App() {
             setLastEncoded(enc);
             const dec = decodeValue(enc.payload);
             setLastDecoded(dec);
+            console.log('Decoded JSBT', dec.value);
         } catch (e: any) {
             setError(e?.message ? String(e.message) : String(e));
         }
@@ -228,9 +232,6 @@ export default function App() {
                         <button className="btn primary" onClick={onEncode}>
                             Encode
                         </button>
-                        <button className="btn primary" onClick={onEncode}>
-                            Reset
-                        </button>
                     </div>
 
                     {error ? (
@@ -242,7 +243,7 @@ export default function App() {
                     <div className="split" style={{ marginTop: 24 }}>
                         <div className="pane">
                             <div className="paneHeader">
-                                <span>Binary</span>
+                                <span>Binary </span>
                                 {payloadBytes ? <span className="muted">({payloadBytes.byteLength} bytes)</span> : null}
                             </div>
                             <textarea
@@ -264,9 +265,20 @@ export default function App() {
                                 placeholder="Encode something to see hex"
                             />
                         </div>
+
+                        <div className="pane" style={{ marginTop: 12 }}>
+                            <div className="paneHeader">Bin</div>
+                            <textarea
+                                className="mono"
+                                value={payloadBin}
+                                readOnly
+                                spellCheck={false}
+                                placeholder="Encode something to see bin"
+                            />
+                        </div>
                     </div>
                     <div className="pane" style={{ marginTop: 12 }}>
-                        <div className="paneHeader">Decoded preview</div>
+                        <div className="paneHeader">Decoded preview (see console for better output)</div>
                         <pre className="preview">{lastDecoded ? safePreview(lastDecoded.value) : '—'}</pre>
                     </div>
                 </section>
@@ -355,6 +367,16 @@ function bytesToHex(bytes: Uint8Array): string {
     for (let i = 0; i < bytes.length; i++) {
         const b = bytes[i];
         out += b.toString(16).padStart(2, '0');
+        if (i !== bytes.length - 1) out += ' ';
+    }
+    return out;
+}
+
+function bytesToBin(bytes: Uint8Array): string {
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+        out += b.toString(2).padStart(8, '0');
         if (i !== bytes.length - 1) out += ' ';
     }
     return out;
