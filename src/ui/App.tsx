@@ -202,7 +202,7 @@ export default function App() {
             <header className="topbar">
                 <div className="brand">
                     <div>
-                        <div className="title">JSBT Playground (JSBT v1.3.1)</div>
+                        <div className="title">JSBT Playground (JSBT v1.3.2)</div>
                     </div>
                 </div>
 
