@@ -1,25 +1,82 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { ChangeEvent, SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { JSBT } from '@cheprasov/jsbt';
 
-const samples = [
-    `return {
-    id: 123456,
-    name: 'John Doe',
-    isActive: true,
-    age: 42,
-    tags: ['node', 'typescript', 'binary', 'serialization'],
-    scores: Array.from({ length: 100 }, (_, i) => i * 3.14159),
-    createdAt: new Date().toISOString(),
-    balance: 12345.67,
-    meta: {
-        retries: 3,
-        source: 'playground',
-        flags: { a: true, b: false, c: true },
-    },
+const examples = new Map([
+    [
+        'Basic – Native types that JSON breaks',
+        `// Preset 1: Basic – Native types that JSON breaks
+return {
+  id: 123456,
+  name: "John Doe",
+  isActive: true,
+  createdAt: new Date(),
+  balance: 12345.67,
+  set: new Set(['user', 'premium']),
+  tags: ["node", "typescript", "binary"],
+  scores: [3.14, 2.71, 1.41],
+  data: new Uint8Array([1, 2, 3, 4, 5])
 };`,
-    `const baseDate = new Date();
-const baseScores = Array.from({ length: 20 }, (_, i) => i * 1.2345);
+    ],
+    [
+        'Shared Objects – Deduplication magic',
+        `// Preset 2: Shared Objects – Deduplication magic
+const shared = {
+  id: 1001,
+  value: "I am shared many times",
+  flag: true
+};
 
+return {
+  a: shared,
+  b: shared,
+  c: shared,
+  list: [shared, shared, shared],
+  copy: {...shared}
+};`,
+    ],
+    [
+        'Circular Reference',
+        `// Preset 3: Circular Reference
+const userA = {
+  id: 42,
+  name: "Alice",
+  friends: []
+};
+
+const userB = {
+  id: 43,
+  name: "Bob",
+  friends: [userA]
+};
+
+userA.friends.push(userB); // circular
+userA.self = userA;
+
+return userA;
+`,
+    ],
+    [
+        'Map and Set support',
+        `// Preset 4: Map and Set support
+const map = new Map([
+  ["name", "Bob"],
+  ["age", 35],
+  [true, "boolean key"]
+]);
+
+const set = new Set(["apple", "banana", "orange"]);
+
+return {
+  map,
+  set,
+  createdAt: new Date()
+};`,
+    ],
+    [
+        'Structure deduplication',
+        `// Preset 5: Structure deduplication
+const baseDate = new Date();
+const baseScores = Array.from({ length: 20 }, (_, i) => i * 1.2345);
 return Array.from({ length: 10_000 }, (_, i) => ({
     id: i % 100,
     name: \`User \${i % 50}\`,
@@ -40,7 +97,22 @@ return Array.from({ length: 10_000 }, (_, i) => ({
     },
 }));
 `,
-];
+    ],
+]);
+
+let defaultPreset = '';
+const exampleOptions: any[] = [];
+
+examples.forEach((value, key) => {
+    if (!defaultPreset) {
+        defaultPreset = key;
+    }
+    exampleOptions.push(
+        <option key={key} value={key}>
+            {key}
+        </option>,
+    );
+});
 
 type EncodeResult = {
     payload: string;
@@ -136,8 +208,8 @@ function safePreview(value: unknown): string {
     }
 }
 
-function getSample() {
-    return samples.sort(() => Math.random() * 2 - 1)[0];
+function getSample(): string {
+    return examples.get(defaultPreset) || '';
 }
 
 function encodeValue(value: unknown): EncodeResult {
@@ -180,21 +252,36 @@ export default function App() {
         setError(null);
         try {
             const v = eval(`(function InputFunc(){ ${inputText} })();`);
-            const enc = encodeValue(v);
             console.log('Original value', v);
-            console.log('Encoded JSBT', enc.payload);
+
             try {
-                setLastEncodedJSONSize(JSON.stringify(v).length);
+                const json = JSON.stringify(v);
+                console.log('Encoded JSON', json);
+                setLastEncodedJSONSize(json.length);
             } catch (e) {
+                console.log('Encoded JSON', e);
                 setLastEncodedJSONSize(0);
             }
+
+            const enc = encodeValue(v);
+            console.log('Encoded JSBT', enc.payload);
             setLastEncoded(enc);
+
             const dec = decodeValue(enc.payload);
             setLastDecoded(dec);
             console.log('Decoded JSBT', dec.value);
         } catch (e: any) {
             setError(e?.message ? String(e.message) : String(e));
         }
+    };
+
+    const onSelect = (e: any) => {
+        const c = examples.get(e.target.value) || '';
+        setInputText(c);
+        setError(null);
+        setLastEncodedJSONSize(null);
+        setLastEncoded(null);
+        setLastDecoded(null);
     };
 
     return (
@@ -215,6 +302,13 @@ export default function App() {
 
             <div className="grid">
                 <section className="card">
+                    <div className="examples">
+                        Presets:{' '}
+                        <select name="preset" onChange={onSelect}>
+                            {exampleOptions}
+                        </select>
+                    </div>
+
                     <div className="cardHeader">
                         <div>
                             <div className="cardTitle">Eval Input</div>
@@ -298,7 +392,7 @@ export default function App() {
                             value={lastEncoded ? prettyBytes(lastEncoded.sizeBytes) : '—'}
                             value2={
                                 lastEncodedJSONSize && lastEncoded
-                                    ? ` - ${Math.round((lastEncoded.sizeBytes / lastEncodedJSONSize) * 100)}% of JSON`
+                                    ? ` - ${Math.round((lastEncoded.sizeBytes / lastEncodedJSONSize) * 100)}% of JSON (x ${Math.round((lastEncodedJSONSize / lastEncoded.sizeBytes) * 10) / 10})`
                                     : ''
                             }
                         />
